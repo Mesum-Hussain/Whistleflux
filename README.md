@@ -170,8 +170,7 @@ trained only to tidy up dictation. `whistleflux download s1-mini` fetches it (48
 llama.cpp to run it (about 25 MB). It's English only.
 
 It turns spoken lists into "- " lists, and counted ones ("first..., second...") into
-"1. 2." lists. Say list items in one go: items split up with "new line" can come out
-garbled, because each line is cleaned on its own. It doesn't fix misheard words from
+"1. 2." lists, whether you say them in one go or one per "new line". It doesn't fix misheard words from
 context ("pole request" stays as is); add names and jargon to `[speech] keywords` instead.
 
 The background process runs llama.cpp's `llama-server` alongside itself, listening on

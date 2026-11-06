@@ -464,6 +464,35 @@ def number_lists(text: str) -> str:
     return text
 
 
+def _counted_lines(lines: list[str]) -> dict[int, str]:
+    """Lines that count off a list one per line ("first buy milk" / "second call mom"),
+    as {line index: the item without its marker}. Needs 2+ lines in a row starting with
+    "first", "second"... in order; "finally" or "lastly" can end the run."""
+    found: dict[int, str] = {}
+    run: list[tuple[int, str]] = []
+
+    def close():
+        if len(run) >= 2:
+            found.update(run)
+        run.clear()
+
+    for i, line in enumerate(lines):
+        m = _MARKER.match(line.strip())
+        item = line.strip()[m.end():].strip() if m else ""
+        pos = _position(m) if m and item else -1
+        if run and pos == 0:
+            run.append((i, item))
+            close()
+        elif run and pos == len(run) + 1:
+            run.append((i, item))
+        else:
+            close()
+            if pos == 1:
+                run.append((i, item))
+    close()
+    return found
+
+
 def format_text(text: str, cfg: dict) -> str:
     """Clean up text with S1-mini. On any problem, return text unchanged.
 
@@ -481,15 +510,26 @@ def format_text(text: str, cfg: dict) -> str:
     timeout = float(cfg["format"].get("timeout", 10))
     try:
         server = get_server()
+        raw = text.split("\n")
+        # Clean a counted item without its "second": alone, "second call mom" reads to the
+        # model as "Second call, Mom."
+        counted = _counted_lines(raw)
         lines = []
-        for line in text.split("\n"):
+        number = 0
+        for i, line in enumerate(raw):
             if not line.strip():
                 lines.append("")  # blank line from "new paragraph"
+                number = 0
                 continue
-            pieces = [_clean_piece(server, p, s, timeout) for p in _chunks(line.strip())]
+            pieces = [_clean_piece(server, p, s, timeout) for p in _chunks(counted.get(i, line.strip()))]
             cleaned = _join([p for p in pieces if p])
-            if cleaned:  # a line that was only filler disappears entirely
-                lines.append(cleaned)
+            if not cleaned:  # a line that was only filler disappears entirely
+                continue
+            if i in counted:
+                starts_run = _position(_MARKER.match(line.strip())) == 1
+                number = 1 if starts_run else number + 1
+                cleaned = f"{number}. {_item(cleaned)}"
+            lines.append(cleaned)
     except (OSError, RuntimeError, ValueError, KeyError, IndexError) as e:
         log.error("S1-mini clean-up failed, using basic clean-up: %r", e)
         return text

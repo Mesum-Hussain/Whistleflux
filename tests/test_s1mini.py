@@ -177,6 +177,55 @@ class NumberListsTest(unittest.TestCase):
                              "First, sleep. Second, eat.")
 
 
+class CountedLinesTest(unittest.TestCase):
+    """"first buy milk / new line / second call mom": each item cleaned without its marker."""
+
+    def _run(self, text, answers=None, cfg=None):
+        server = FakeServer(answers or {})
+        with mock.patch.object(s1mini, "is_downloaded", return_value=True), \
+                mock.patch.object(s1mini, "get_server", return_value=server):
+            out = s1mini.format_text(text, cfg or _cfg())
+        sent = [b["messages"][1]["content"].split("\n", 1)[1] for b in server.bodies]
+        return out, sent
+
+    def test_items_sent_without_marker_and_numbered(self):
+        answers = {"buy milk": "Buy milk.", "call mom": "Call mom.", "email sam": "Email Sam."}
+        out, sent = self._run("first buy milk\nsecond call mom\nthird email sam", answers)
+        self.assertEqual(sent, ["buy milk", "call mom", "email sam"])
+        self.assertEqual(out, "1. Buy milk\n2. Call mom\n3. Email Sam")
+
+    def test_other_marker_forms(self):
+        answers = {"a": "A.", "b": "B.", "c": "C."}
+        out, _ = self._run("number one a\nnumber two b\nfinally c", answers)
+        self.assertEqual(out, "1. A\n2. B\n3. C")
+        out, _ = self._run("firstly, a\nsecondly: b", answers)
+        self.assertEqual(out, "1. A\n2. B")
+
+    def test_intro_line_and_text_after_kept(self):
+        answers = {"todo": "To do:", "a": "A.", "b": "B.", "thanks": "Thanks."}
+        out, _ = self._run("todo\nfirst a\nsecond b\nthanks", answers)
+        self.assertEqual(out, "To do:\n1. A\n2. B\nThanks.")
+
+    def test_numbering_restarts(self):
+        answers = {"a": "A.", "b": "B."}
+        out, _ = self._run("first a\nsecond b\nfirst a\nsecond b", answers)
+        self.assertEqual(out, "1. A\n2. B\n1. A\n2. B")
+        out, _ = self._run("first a\nsecond b\n\nfirst a\nsecond b", answers)
+        self.assertEqual(out, "1. A\n2. B\n\n1. A\n2. B")
+
+    def test_lines_that_dont_count_off_a_list(self):
+        for text in [
+            "first a",                     # only one
+            "first a\nthird b",           # out of order
+            "second a\nthird b",          # doesn't start at one
+            "first\nsecond",              # markers with no items
+            "at first a\nsecond b",       # "at first" isn't a marker at the line start
+        ]:
+            out, sent = self._run(text)
+            self.assertEqual(sent, [l for l in text.split("\n") if l], text)
+            self.assertNotIn("1. ", out, text)
+
+
 class JoinTest(unittest.TestCase):
     def test_sentences_joined_with_space(self):
         self.assertEqual(s1mini._join(["One.", "Two."]), "One. Two.")
