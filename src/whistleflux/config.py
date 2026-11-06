@@ -1,6 +1,5 @@
 """Config file: defaults below, overridden by the user's config.toml."""
 
-import os
 import tomllib
 from pathlib import Path
 
@@ -18,20 +17,21 @@ silence_threshold_db = -50   # recordings quieter than this are skipped
 
 [format]
 # Remove "um"/"uh", stutters like "the the", apply "scratch that" and "new line".
-# Runs on this computer with simple rules, before Gemini (if enabled).
+# Simple rules, applied before the smart clean-up.
 basic_cleanup = true
-# Then clean up the transcript with Gemini: self-corrections, lists, numbers, emails.
-# Without an API key only the basic clean-up is applied.
+# Then a smart clean-up with S1-mini by Superwhisper: self-corrections, punctuation, lists,
+# numbers, emails. Runs on this computer, so nothing leaves it. English only: with another
+# `language` above, only the basic clean-up is applied.
+# Download it once (about 510 MB) with `whistleflux download s1-mini`.
 enabled = true
-# "gemini-3.5-flash-lite" or "gemini-3.1-flash-lite": fast, large free daily limit.
-# "gemini-3.5-flash" or "gemini-3.8-flash": stronger, but only 20 free uses a day.
-# If the model is out of free uses, the Flash-Lite models are tried instead.
-model = "gemini-3.5-flash-lite"
-api_key = ""                 # or set GEMINI_API_KEY in your environment or ~/.env
-thinking_level = "minimal"   # "" to use the model's default
-timeout = 10                 # seconds; on timeout or error the raw transcript is typed
-# Extra rules for the formatter, e.g. names and jargon it should spell correctly:
-instructions = ""
+timeout = 10                 # seconds, plus 1 per 50 characters dictated; on timeout or
+                             # error the basic clean-up is typed
+
+[s1_mini]
+# Only these values work; the model was trained on exactly these.
+styling = "semi-formal"      # "casual", "semi-casual", "semi-formal" or "formal"
+structure = "lists"          # "lists": spoken lists become "- " or "1. " lines; "prose": fewer lists
+context = "general"          # "email" lays out a greeting, body and sign-off
 
 [output]
 sounds = true                # short beeps when recording starts and stops
@@ -74,18 +74,3 @@ def write_default() -> Path:
         path.write_text(DEFAULT_CONFIG, encoding="utf-8")
     return path
 
-
-def gemini_api_key(cfg: dict) -> str:
-    """Config file first, then the environment, then ~/.env (for shortcut-launched runs)."""
-    key = cfg["format"].get("api_key") or os.environ.get("GEMINI_API_KEY", "")
-    if key:
-        return key
-    env_file = Path.home() / ".env"
-    try:
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip().removeprefix("export ").strip()
-            if line.startswith("GEMINI_API_KEY="):
-                return line.split("=", 1)[1].strip().strip("'\"")
-    except OSError:
-        pass
-    return ""

@@ -1,56 +1,41 @@
-"""Gemini clean-up falls back to another model when the chosen one is unavailable."""
+"""The clean-up pipeline: basic rules first, then S1-mini; nothing is sent anywhere."""
 
-import io
 import unittest
-import urllib.error
 from unittest import mock
 
-from whistleflux import formatter
+from whistleflux import formatter, s1mini
 
 
-def _cfg(model: str) -> dict:
-    return {"format": {"basic_cleanup": False, "enabled": True, "model": model, "api_key": "k",
-                       "thinking_level": "", "timeout": 5, "instructions": ""}}
+def _cfg(basic=True, enabled=True) -> dict:
+    return {"speech": {"language": ""}, "format": {"basic_cleanup": basic, "enabled": enabled, "timeout": 5},
+            "s1_mini": {}}
 
 
-def _http_error(code: int) -> urllib.error.HTTPError:
-    return urllib.error.HTTPError("url", code, "error", {}, io.BytesIO(b"{}"))
+class PipelineTest(unittest.TestCase):
+    def test_rules_then_s1_mini(self):
+        with mock.patch.object(s1mini, "format_text", return_value="Clean.") as local:
+            self.assertEqual(formatter.format_text("um see you soon", _cfg()), "Clean.")
+        self.assertEqual(local.call_args.args[0], "See you soon")  # fillers removed first
 
+    def test_disabled_skips_s1_mini(self):
+        with mock.patch.object(s1mini, "format_text") as local:
+            self.assertEqual(formatter.format_text("um hello", _cfg(enabled=False)), "Hello")
+        local.assert_not_called()
 
-def _reply(text: str) -> dict:
-    return {"candidates": [{"content": {"parts": [{"text": text}]}}]}
+    def test_filler_only_never_reaches_s1_mini(self):
+        with mock.patch.object(s1mini, "format_text") as local:
+            self.assertEqual(formatter.format_text("um uh", _cfg()), "")
+        local.assert_not_called()
 
+    def test_basic_cleanup_off(self):
+        with mock.patch.object(s1mini, "format_text", side_effect=lambda t, c: t) as local:
+            self.assertEqual(formatter.format_text("um hello", _cfg(basic=False)), "um hello")
+        local.assert_called_once()
 
-class FallbackTest(unittest.TestCase):
-    def _run(self, model: str, answers: dict) -> tuple[str, list[str]]:
-        """answers: model -> HTTP error code, or the text it replies with."""
-        asked = []
-
-        def fake_request(url, key, body, timeout):
-            name = url.split("/models/")[1].split(":")[0]
-            asked.append(name)
-            answer = answers[name]
-            if isinstance(answer, int):
-                raise _http_error(answer)
-            return _reply(answer)
-
-        with mock.patch.object(formatter, "_request", fake_request):
-            return formatter.format_text("raw words", _cfg(model)), asked
-
-    def test_out_of_quota_uses_next_model(self):
-        out, asked = self._run("gemini-3.5-flash", {"gemini-3.5-flash": 429, "gemini-3.5-flash-lite": "Clean words."})
-        self.assertEqual(out, "Clean words.")
-        self.assertEqual(asked, ["gemini-3.5-flash", "gemini-3.5-flash-lite"])
-
-    def test_all_out_of_quota_types_raw_text(self):
-        out, asked = self._run("gemini-3.5-flash-lite", {"gemini-3.5-flash-lite": 429, "gemini-3.1-flash-lite": 503})
-        self.assertEqual(out, "raw words")
-        self.assertEqual(asked, ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"])
-
-    def test_bad_key_does_not_try_other_models(self):
-        out, asked = self._run("gemini-3.5-flash-lite", {"gemini-3.5-flash-lite": 403})
-        self.assertEqual(out, "raw words")
-        self.assertEqual(asked, ["gemini-3.5-flash-lite"])
+    def test_no_network(self):
+        with mock.patch("urllib.request.urlopen", side_effect=AssertionError("network used")), \
+                mock.patch.object(s1mini, "is_downloaded", return_value=False):
+            self.assertEqual(formatter.format_text("um hello there", _cfg()), "Hello there")
 
 
 if __name__ == "__main__":

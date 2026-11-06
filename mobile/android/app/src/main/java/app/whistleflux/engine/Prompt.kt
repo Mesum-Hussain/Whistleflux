@@ -6,7 +6,7 @@ import android.util.Log
 object Prompt {
     private const val TAG = "WhistlefluxPrompt"
 
-    // Keep in sync with PROMPT in src/whistleflux/formatter.py.
+    // The desktop app used this prompt too until it switched to S1-mini (2026-11-06).
     val PROMPT = """
 You are the formatting step of a voice dictation tool. You receive a raw speech-to-text transcript inside <transcript> tags. Return the same message, cleaned up and ready to be typed into whatever app the user is in.
 

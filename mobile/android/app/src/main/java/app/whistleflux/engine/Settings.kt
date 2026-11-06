@@ -18,7 +18,7 @@ data class Settings(
     data class Model(val id: String, val label: String, val note: String)
 
     companion object {
-        // Same choices and default as the desktop app (src/whistleflux/formatter.py).
+        // Choices in the settings screen; the first is the default.
         val MODELS = listOf(
             Model("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "Fast, with a large free daily limit"),
             Model("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", "Fast, with a large free daily limit"),

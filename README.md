@@ -10,22 +10,24 @@ clean text is typed at your cursor.
   German, French, Spanish, Italian, Dutch and Polish, with punctuation and capitals.
 - **Basic clean-up on your computer**: removes "um"/"uh" and stutters like "the the",
   applies "scratch that", and turns "new line" and "new paragraph" into line breaks.
-- **Optional smart clean-up** with Gemini (`gemini-3.5-flash-lite` by default): applies
-  corrections like "Tuesday, no, Wednesday", turns spoken lists into lists, and writes
-  numbers, emails and dates properly. Only the text is sent, never the audio. Without an
-  API key, or if Gemini fails, the basic clean-up is typed instead.
+- **Smart clean-up on your computer** with [S1-mini by Superwhisper](https://huggingface.co/superwhisper/s1-mini):
+  applies corrections like "Tuesday, no, Wednesday", turns spoken lists into lists, and
+  writes numbers, emails and dates properly (about 510 MB download, about 1.1 GB of memory
+  while running). English only; other languages get the basic clean-up. If it isn't
+  downloaded or fails, the basic clean-up is typed instead.
+- **Fully offline**: nothing you say or type is sent anywhere.
 - **Small**: two Python dependencies on macOS and Windows (`sounddevice`, `pynput`) and one
   on Linux.
 
 ## How it works
 
 ```
-shortcut ─▶ record mic ─▶ shortcut ─▶ Whistle (local)  ─▶ basic clean-up (local)
-                                                    ─▶ Gemini (optional) ─▶ typed at cursor
+shortcut ─▶ record mic ─▶ shortcut ─▶ Whistle ─▶ basic clean-up ─▶ S1-mini ─▶ typed at cursor
+                                      (all on your computer)
 ```
 
-A background process keeps the model loaded, so after the first run each dictation takes
-about half a second plus the Gemini round trip. The first `whistleflux` call starts it
+A background process keeps the models loaded, so after the first run a short dictation
+takes about one to two seconds, and a 1.5-minute one about 8 seconds. The first `whistleflux` call starts it
 automatically. While recording, a small pill at the bottom of the screen shows sound
 bars that follow your voice, then a blue wave while it transcribes (turn it off with
 `overlay = false`). You'll also hear a high beep when recording starts, a lower one when
@@ -38,14 +40,8 @@ You need Python 3.11+ and [uv](https://docs.astral.sh/uv/) (or pipx).
 ```sh
 git clone <this repo> whistleflux && cd whistleflux
 uv tool install .
-whistleflux download        # fetch the speech model once (19 MB)
-```
-
-Then add your Gemini API key (free at [aistudio.google.com](https://aistudio.google.com/apikey))
-to `~/.env`, your environment, or the config file:
-
-```sh
-echo 'GEMINI_API_KEY=your-key' >> ~/.env
+whistleflux download          # fetch the speech model once (19 MB)
+whistleflux download s1-mini  # and the clean-up model with llama.cpp (about 510 MB)
 ```
 
 ### Linux
@@ -151,9 +147,12 @@ The most useful settings:
 ```toml
 [format]
 basic_cleanup = true              # remove "um"s and stutters, apply "scratch that"
-enabled = true                    # false = don't send the text to Gemini
-model = "gemini-3.5-flash-lite"   # see the choices in the config file
-instructions = "Spell these as written: Kubernetes, PostgreSQL, Whistleflux."
+enabled = true                    # false = basic clean-up only (no S1-mini)
+
+[s1_mini]
+styling = "semi-formal"           # "casual", "semi-casual", "semi-formal" or "formal"
+structure = "lists"               # "prose" makes lists less often
+context = "general"               # "email" lays out a greeting, body and sign-off
 
 [speech]
 language = ""                     # "en", "de", "fr", "es", "it", "nl", "pl"; "" = detect it
@@ -163,6 +162,21 @@ silence_threshold_db = -50        # recordings quieter than this are skipped
 [output]
 sounds = true
 ```
+
+## Smart clean-up (S1-mini)
+
+[S1-mini](https://huggingface.co/superwhisper/s1-mini) by Superwhisper is a small model
+trained only to tidy up dictation. `whistleflux download s1-mini` fetches it (484 MB) and
+llama.cpp to run it (about 25 MB). It's English only.
+
+It turns spoken lists into "- " lists, and counted ones ("first..., second...") into
+"1. 2." lists. Say list items in one go: items split up with "new line" can come out
+garbled, because each line is cleaned on its own. It doesn't fix misheard words from
+context ("pole request" stays as is); add names and jargon to `[speech] keywords` instead.
+
+The background process runs llama.cpp's `llama-server` alongside itself, listening on
+`127.0.0.1` only. Its own log is `s1-mini-server.log` next to `whistleflux.log`. If S1-mini
+fails, or `language` is set to something other than `en`, the basic clean-up is typed.
 
 ## Troubleshooting
 
@@ -177,7 +191,8 @@ sounds = true
 ## Mobile
 
 The Android app is in [`mobile/`](mobile/README.md): a voice keyboard that runs the same
-Whistle model on the phone and uses the same Gemini prompt. iOS is not started yet; iOS
+Whistle model on the phone. Its optional smart clean-up still uses the Gemini API, since
+S1-mini is too big for a phone keyboard. iOS is not started yet; iOS
 keyboards can't use the microphone and have tight memory limits, so recording would have
 to happen in the main app.
 
@@ -185,3 +200,6 @@ to happen in the main app.
 
 Speech model: [Whistle](https://huggingface.co/Cactus-Compute/whistle) by Cactus Compute,
 run with their [Needle engine](https://huggingface.co/Cactus-Compute/needle3) (both Apache 2.0).
+
+Offline clean-up model: [S1-mini](https://huggingface.co/superwhisper/s1-mini) by Superwhisper
+(Apache 2.0 with a naming term), run with [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT).

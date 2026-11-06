@@ -121,10 +121,15 @@ def cmd_daemon(args) -> int:
 
 
 def cmd_download(args) -> int:
-    if speech.is_downloaded() and not args.force:
-        print(f"Already downloaded: {speech.model_dir()}")
+    module = speech
+    if args.model == "s1-mini":
+        from whistleflux import s1mini as module
+    if module.is_downloaded() and not args.force:
+        print(f"Already downloaded: {module.model_dir()}")
         return 0
-    print(f"Saved to: {speech.download()}")
+    print(f"Saved to: {module.download()}")
+    if args.model == "s1-mini" and _send("status") is not None:
+        print("Restart to start using it: whistleflux stop")
     return 0
 
 
@@ -170,7 +175,9 @@ def main() -> None:
     sub.add_parser("status", help="show whether it's idle, recording or processing").set_defaults(func=cmd_simple)
     sub.add_parser("stop", help="stop the background process").set_defaults(func=cmd_stop)
     sub.add_parser("daemon", help="run the background process in the foreground").set_defaults(func=cmd_daemon)
-    p = sub.add_parser("download", help="download the speech model (19 MB)")
+    p = sub.add_parser("download", help="download the speech model (19 MB), or S1-mini (about 510 MB)")
+    p.add_argument("model", nargs="?", choices=("speech", "s1-mini"), default="speech",
+                   help="speech (default), or s1-mini for smart clean-up on this computer")
     p.add_argument("--force", action="store_true", help="download again even if present")
     p.set_defaults(func=cmd_download)
     p = sub.add_parser("transcribe", help="transcribe a 16-bit WAV file and print the text")

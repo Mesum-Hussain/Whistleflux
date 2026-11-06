@@ -1,7 +1,7 @@
 [project]
 name = "whistleflux"
 version = "0.2.0"
-description = "Dictate anywhere: local Whistle speech-to-text, cleaned up by Gemini, typed at your cursor."
+description = "Dictate anywhere: local Whistle speech-to-text, cleaned up by local S1-mini, typed at your cursor."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

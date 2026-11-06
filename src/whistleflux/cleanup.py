@@ -3,7 +3,7 @@
 Removes filler sounds and stutters, applies "scratch that", and turns "new line" and
 "new paragraph" into line breaks. It only deletes or moves text the speaker clearly
 didn't mean to keep, so it never changes the meaning. Smarter fixes (self-corrections,
-lists, numbers) are left to the optional Gemini step.
+lists, numbers) are left to S1-mini (s1mini.py).
 
 The Android app has the same rules (mobile/.../engine/Cleanup.kt). Both are checked
 against shared/cleanup-cases.json, so change them together.

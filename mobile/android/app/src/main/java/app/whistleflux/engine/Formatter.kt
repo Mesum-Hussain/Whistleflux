@@ -9,9 +9,9 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * Smart clean-up with the Gemini API. Port of the desktop app's formatter
- * (src/whistleflux/formatter.py): only the text is sent, never audio, and on any failure the
- * text is returned unchanged, so dictation never gets lost.
+ * Smart clean-up with the Gemini API (the desktop app uses S1-mini on the computer instead).
+ * Only the text is sent, never audio, and on any failure the text is returned unchanged, so
+ * dictation never gets lost.
  */
 object Formatter {
     private const val TAG = "WhistlefluxFormatter"

@@ -11,7 +11,7 @@ import time
 from multiprocessing import AuthenticationError
 from multiprocessing.connection import Listener
 
-from whistleflux import audio, paths
+from whistleflux import audio, paths, s1mini
 from whistleflux.formatter import format_text
 from whistleflux.output import make_typer
 from whistleflux.overlay import OverlayClient
@@ -31,6 +31,13 @@ class Daemon:
         start = time.monotonic()
         self.transcriber = from_config(cfg)
         log.info("Speech model loaded in %.1fs", time.monotonic() - start)
+        fmt = cfg["format"]
+        if fmt.get("enabled", True) and s1mini.is_downloaded():
+            # Load it now so the first dictation isn't slower; a failure is retried then.
+            try:
+                s1mini.get_server()
+            except Exception:
+                log.exception("Couldn't start S1-mini")
         self.typer = make_typer(cfg)
         self.recorder = audio.Recorder()
         self.overlay = OverlayClient() if cfg["output"].get("overlay", True) else None
@@ -166,4 +173,5 @@ class Daemon:
             self.overlay.close()
         if hasattr(self.typer, "close"):
             self.typer.close()
+        s1mini.stop()
         log.info("Stopped")

@@ -12,10 +12,13 @@ speech into text and types it at the cursor. One pipeline on every platform:
 2. **Basic clean-up, on the device:** rules that remove "um"/"uh" and stutters, apply
    "scratch that", and turn "new line"/"new paragraph" into line breaks
    (`src/whistleflux/cleanup.py`, `mobile/.../engine/Cleanup.kt`).
-3. **Smart clean-up with the Gemini API** (`gemini-3.5-flash-lite` by default), when an API
-   key is set: self-corrections, lists, numbers, emails. Only the text is sent. If the
-   chosen model is out of free quota, busy or retired, the Flash-Lite models are tried in
-   turn; on any other failure the output of step 2 is typed.
+3. **Smart clean-up**: self-corrections, lists, numbers, emails. On any failure the output
+   of step 2 is typed.
+   - Desktop: S1-mini by Superwhisper, on the computer (`src/whistleflux/s1mini.py`).
+     Gemini was removed from desktop on 2026-11-06, so desktop is fully offline.
+   - Android: the Gemini API (`gemini-3.5-flash-lite` by default), when an API key is set.
+     Only the text is sent. If the chosen model is out of free quota, busy or retired, the
+     Flash-Lite models are tried in turn.
 
 ### Desktop (Python, `src/whistleflux/`)
 
@@ -25,7 +28,8 @@ speech into text and types it at the cursor. One pipeline on every platform:
 - Speech: Whistle only. `whistleflux download` fetches the model and this OS's engine
   (19 MB, pinned commits, SHA-256 checked) and removes old Parakeet folders. Config:
   `[speech] language` ("" = detect) and `keywords` (names and jargon to favor).
-- Gemini model in `[format] model` (choices listed in the config file).
+- Smart clean-up: S1-mini. `whistleflux download s1-mini` fetches the model and llama.cpp;
+  `[s1_mini]` sets styling, lists and email layout.
 - Recording pill uses the logo's colors (`#101418`, red `#f50a0a`).
 
 ### Android (`mobile/`)
@@ -78,13 +82,15 @@ Still to decide: which option, and which symbols are never used.
 | Whistle as the only speech model (replaced Parakeet Redux) | 17 MB vs 169 to 490 MB, about 70 MB of memory vs 720 to 930 MB, keyword biasing for names. Trade-offs: 7 languages instead of 25, and higher published error rates than Parakeet (LibriSpeech 4.3%/10.5% vs 1.9%/3.6%, AMI meetings 26% vs 11%). Engine only published for arm64 on Android. |
 | Engine called directly, not via `cactus-needle` | Avoids its huggingface_hub dependency tree and usage telemetry; downloads are pinned to commits and SHA-256 checked. |
 | Gemini API for smart clean-up | Earlier test of local models on 10 tricky dictations: tiny models wrote poems, answered questions or garbled text; 2B to 4B models were slow or translated. Gemini Nano is blocked unless the app itself is on screen, so it can't run from a keyboard. Gemini API: 10/10 in about 1 s. |
-| Default `gemini-3.5-flash-lite`, with a Flash-Lite fallback | On 27 dictations (14 basic, 13 hard): 3.1 and 3.5 Flash-Lite both 26/27 in about 1 s. The free tier is per model and per day (3.1 Flash-Lite: 500; 3.5 and 3.8 Flash: 20), and running out silently left raw text, so the app now tries the other Flash-Lite model on 429/503/404. Android picks the model from a dropdown (a typed name was too easy to get wrong). |
+| S1-mini (desktop) as an offline alternative to Gemini, 2026-11-06 | 0.6B model by Superwhisper trained only for dictation clean-up, unlike the general models tested earlier. English only, 484 MB, Apache 2.0 with a naming term. Run with llama.cpp's `llama-server` (pinned build b12110, SHA-256 checked) as a child process on 127.0.0.1; `whistleflux download s1-mini`, `formatter = "s1-mini"`. audio.cpp was considered but runs audio models only, not text models. Not used on Android: too big for a keyboard process. Measured on this laptop (2026-11-06): 1.1 GB memory, loads in ~1 s, 0.2-1.2 s per short dictation, ~8 s for 1,200 characters (~31 tokens/s). Prompt caching made output vary run to run, so it is off. Lists: it makes "- " lists itself (but not for the model card's own trip example) and sometimes numbers counted lists; a rule (`number_lists`) numbers the rest when the "first/second" words survive. Weak spot: very short lines (items split by "new line") get stray commas ("Call, Mom"). |
+| S1-mini replaces Gemini on desktop, 2026-11-06 | Same 20 dictations through both (fillers, corrections, "scratch that", "new line", lists, money, emails, links, misheard words, questions not to answer, casual text): 15 identical or equally good. Gemini fixed a misheard word ("pole request") that S1-mini kept; S1-mini dropped "Translate this into French:" and turned "tho" into "too"; Gemini dropped "Go to" and timed out once. S1-mini median 1.05 s (max 2.6 s), Gemini 1.5 s (max 10.5 s, 3 quota errors during the test). Chose S1-mini for offline use and no quota. Android keeps Gemini: S1-mini is too big for a keyboard. |
+| Default `gemini-3.5-flash-lite` (Android), with a Flash-Lite fallback | On 27 dictations (14 basic, 13 hard): 3.1 and 3.5 Flash-Lite both 26/27 in about 1 s. The free tier is per model and per day (3.1 Flash-Lite: 500; 3.5 and 3.8 Flash: 20), and running out silently left raw text, so the app now tries the other Flash-Lite model on 429/503/404. Android picks the model from a dropdown (a typed name was too easy to get wrong). |
 | No local formatter yet (2026-10-19) | Same 27 dictations, llama.cpp: Microsoft BitNet b1.58 2B4T (1.2 GB) 6/27 and about 30 s; Gemma 3 270M 5, LFM2.5-350M 6, Qwen3.5-0.8B 7, LFM2.5-1.2B 5, Gemma 3 1B 10, Llama 3.2 1B 14, Qwen3.5-2B 17 (1.2 GB, about 7 s on the OnePlus), Cactus Needle 3 2 (it extracts, doesn't rewrite). All wrote poems, translated, or answered questions. Way forward if wanted: fine-tune a 270M to 0.8B model on this one task (Colab/Kaggle GPU; this laptop has none). |
 | Mic view as the Android default, QWERTY one tap away | The app is voice-first. An old-phone T9 keypad was tried as the main layout (with keypad swipe typing) and dropped. |
 | Swipe typing with AOSP's word list (Apache 2.0) | 120,022 words (offensive and non-words removed). The decoder compares the swipe with each candidate's path (position and shape) plus word frequency: 80/80 simulated swipes in the top 3 (`GestureDecoderTest`). |
 | On-device learning only | Personal words and word pairs never leave the phone; "Forget learned words" deletes them. |
 | Undo/redo as Ctrl+Z / Ctrl+Shift+Z | Android gives keyboards no undo call; standard text fields and Chrome handle the shortcuts. Some apps may ignore them. |
-| Rules run before Gemini | Instant, never change meaning, and still apply offline or without a key. |
+| Rules run before the smart clean-up | Instant, never change meaning, and still apply offline or without a key. |
 | Speech model bundled in the Android app | No download step after install; small enough for the Play Store's base module. |
 | Kotlin and Python clean-up kept identical | Both are tested against `shared/cleanup-cases.json`. |
 | Keep the desktop app in Python | It works; it will be packaged into installers instead of rewritten. |
@@ -106,7 +112,7 @@ popups, no screen-reader support for individual keys, English word list only.
    available: build on GitHub Actions' macOS runners; can't be tested on a device yet.
 4. **Desktop installers** for Linux, macOS and Windows, built by GitHub Actions, plus a
    settings window instead of editing `config.toml`. Unsigned at first.
-5. Optional: a fine-tuned small local formatter so clean-up works offline.
+5. Optional: offline smart clean-up on Android (S1-mini is too big for a keyboard process).
 6. Before a Play Store release: build a signed release AAB (currently signed with the
    debug key).
 
@@ -128,7 +134,7 @@ popups, no screen-reader support for individual keys, English word list only.
   `WhistlefluxFormatter`. `adb logcat -G 16M` keeps them longer.
 - Tests:
   - desktop: `PYTHONPATH=src python3 -m unittest discover -s tests` (clean-up rules,
-    Gemini fallback),
+    S1-mini request format, list numbering and fallbacks),
   - setup screen: `cd mobile && npm test && npx tsc --noEmit`,
   - Android: `cd mobile/android && ./gradlew :app:testDebugUnitTest` (clean-up rules,
     swipe decoder, learning),

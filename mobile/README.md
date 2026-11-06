@@ -30,7 +30,7 @@ android/app/src/main/java/app/whistleflux/
   engine/ModelManager.kt       where the bundled model lives
   engine/Cleanup.kt            basic clean-up rules (same as src/whistleflux/cleanup.py)
   engine/Formatter.kt          Gemini smart clean-up
-  engine/Prompt.kt             Gemini prompt (same as src/whistleflux/formatter.py)
+  engine/Prompt.kt             Gemini prompt (the desktop app uses S1-mini instead)
   engine/Settings.kt           API key and options
   bridge/                      exposes the above to React Native
 android/app/src/main/cpp/      JNI bridge to the speech engine (speech_jni.c) and its CMake build
